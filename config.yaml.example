@@ -1,0 +1,20 @@
+server:
+  host: 0.0.0.0
+  port: 5000
+  worker_count: 4
+  processing_timeout: 30
+  max_payload_bytes: 26214400   # 25 MB
+  db_path: events.db
+
+retry:
+  max_attempts: 3
+  backoff_base: 2.0
+
+retention:
+  success_hours: 4.0        # completed/skipped events
+  failed_days: 4.0           # permanently failed events
+  prune_interval_minutes: 60
+
+github:
+  # Path to a file containing the secret, or the secret value directly
+  webhook_secret: /run/secrets/github_webhook_secret

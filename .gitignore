@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+config.yaml
+.webhook_secret
+.idea/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.db
