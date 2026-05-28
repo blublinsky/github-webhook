@@ -11,3 +11,5 @@ config.yaml
 .pytest_cache/
 .ruff_cache/
 *.db
+*.db-shm
+*.db-wal

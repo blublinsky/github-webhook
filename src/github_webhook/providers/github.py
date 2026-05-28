@@ -15,17 +15,25 @@ logger = logging.getLogger("webhook")
 
 
 async def process_pull_request(payload: dict[str, Any]) -> None:
-    """Handle pull_request events (opened, synchronize, merged)."""
+    """Handle pull_request events across the full PR lifecycle."""
     action = payload.get("action")
     pr = payload.get("pull_request", {})
+    number = pr.get("number")
+    title = pr.get("title")
+    user = pr.get("user", {}).get("login", "unknown")
 
-    logger.info("PR #%s %s: %s", pr.get("number"), action, pr.get("title"))
+    logger.info("PR #%s %s by %s: %s", number, action, user, title)
 
-    if action in ("opened", "synchronize"):
-        await asyncio.sleep(0.1)  # placeholder
-        logger.info("Processed PR #%s", pr.get("number"))
-    elif action == "closed" and pr.get("merged"):
-        logger.info("PR #%s merged", pr.get("number"))
+    if action == "opened":
+        reviewers = [r.get("login") for r in pr.get("requested_reviewers", [])]
+        if reviewers:
+            logger.info("PR #%s reviewers requested: %s", number, ", ".join(reviewers))
+    elif action == "closed":
+        if pr.get("merged"):
+            merged_by = pr.get("merged_by", {}).get("login", "unknown")
+            logger.info("PR #%s merged by %s", number, merged_by)
+        else:
+            logger.info("PR #%s closed without merge", number)
 
 
 async def process_issue(payload: dict[str, Any]) -> None:
@@ -45,8 +53,74 @@ async def process_push(payload: dict[str, Any]) -> None:
     logger.info("Push to %s: %d commits", ref, len(commits))
 
 
+async def process_issue_comment(payload: dict[str, Any]) -> None:
+    """Handle issue_comment events (comments on issues and PRs)."""
+    action = payload.get("action")
+    comment = payload.get("comment", {})
+    issue = payload.get("issue", {})
+    number = issue.get("number")
+    commenter = comment.get("user", {}).get("login", "unknown")
+    is_pr = "pull_request" in issue
+
+    kind = "PR" if is_pr else "Issue"
+    logger.info(
+        "%s #%s comment %s by %s: %s",
+        kind,
+        number,
+        action,
+        commenter,
+        comment.get("body", "")[:120],
+    )
+
+
+async def process_pull_request_review(payload: dict[str, Any]) -> None:
+    """Handle pull_request_review events (submitted, dismissed, edited)."""
+    action = payload.get("action")
+    review = payload.get("review", {})
+    pr = payload.get("pull_request", {})
+    number = pr.get("number")
+    reviewer = review.get("user", {}).get("login", "unknown")
+    state = review.get("state", "unknown")
+
+    logger.info(
+        "PR #%s review %s by %s: %s",
+        number,
+        action,
+        reviewer,
+        state,
+    )
+
+    if action == "submitted":
+        if state == "approved":
+            logger.info("PR #%s approved by %s", number, reviewer)
+        elif state == "changes_requested":
+            logger.info("PR #%s changes requested by %s", number, reviewer)
+
+
+async def process_pull_request_review_comment(payload: dict[str, Any]) -> None:
+    """Handle pull_request_review_comment events (inline code comments)."""
+    action = payload.get("action")
+    comment = payload.get("comment", {})
+    pr = payload.get("pull_request", {})
+    number = pr.get("number")
+    commenter = comment.get("user", {}).get("login", "unknown")
+    path = comment.get("path", "")
+
+    logger.info(
+        "PR #%s inline comment %s by %s on %s: %s",
+        number,
+        action,
+        commenter,
+        path,
+        comment.get("body", "")[:120],
+    )
+
+
 HANDLERS: dict[str, EventHandler] = {
     "pull_request": process_pull_request,
+    "pull_request_review": process_pull_request_review,
+    "pull_request_review_comment": process_pull_request_review_comment,
+    "issue_comment": process_issue_comment,
     "issues": process_issue,
     "push": process_push,
 }
