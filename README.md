@@ -155,7 +155,7 @@ github:
    - **Content type**: `application/json`
    - **Secret**: the same value from `.webhook_secret` (run `cat .webhook_secret` to copy it)
    - **SSL verification**: keep enabled
-4. Under **Which events would you like to trigger this webhook?**, select **Let me select individual events** and check the events you need (e.g. Pull requests, Issues, Pushes)
+4. Under **Which events would you like to trigger this webhook?**, select **Send me everything** for local development (unhandled events are logged by the fallback handler and pruned automatically). For production, switch to **Let me select individual events** and check only the ones you need
 5. Click **Add webhook**
 
 ### 4. Verify it works
