@@ -18,3 +18,8 @@ retention:
 github:
   # Path to a file containing the secret, or the secret value directly
   webhook_secret: /run/secrets/github_webhook_secret
+
+jira:
+  # Optional — omit or leave empty to disable the Jira provider
+  # Path to a file containing the secret, or the secret value directly
+  webhook_secret: ""

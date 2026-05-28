@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from .config import cfg
 from .handlers import EventDispatcher
 from .providers.github import GitHubProvider
+from .providers.jira import JiraProvider
 from .store import SqliteEventQueue
 from .workers import worker
 
@@ -20,7 +21,16 @@ logger = logging.getLogger("webhook")
 queue = SqliteEventQueue()
 dispatcher = EventDispatcher()
 
-PROVIDERS = [GitHubProvider()]
+
+def _build_providers() -> list:
+    """Build the list of active providers based on config."""
+    providers = [GitHubProvider()]
+    if cfg.jira.webhook_secret:
+        providers.append(JiraProvider())
+    return providers
+
+
+PROVIDERS = _build_providers()
 
 
 @asynccontextmanager

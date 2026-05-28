@@ -60,6 +60,25 @@ class GitHubConfig:
 
 
 @dataclass
+class JiraConfig:
+    """Jira Cloud provider settings."""
+
+    webhook_secret: str = ""
+
+    def read_secret(self) -> bytes:
+        """Read the webhook secret. If the value is a file path, read from it."""
+        value = self.webhook_secret
+        if not value:
+            raise RuntimeError("jira.webhook_secret is not configured")
+        path = Path(value)
+        if path.is_file():
+            value = path.read_text(encoding="utf-8").strip()
+        if not value:
+            raise RuntimeError("jira.webhook_secret file is empty")
+        return value.encode()
+
+
+@dataclass
 class Config:
     """Top-level configuration container."""
 
@@ -67,6 +86,7 @@ class Config:
     retry: RetryConfig = field(default_factory=RetryConfig)
     retention: RetentionConfig = field(default_factory=RetentionConfig)
     github: GitHubConfig = field(default_factory=GitHubConfig)
+    jira: JiraConfig = field(default_factory=JiraConfig)
 
 
 def load_config(path: Path = _DEFAULT_CONFIG_PATH) -> Config:
@@ -82,6 +102,7 @@ def load_config(path: Path = _DEFAULT_CONFIG_PATH) -> Config:
         retry=RetryConfig(**raw.get("retry", {})),
         retention=RetentionConfig(**raw.get("retention", {})),
         github=GitHubConfig(**raw.get("github", {})),
+        jira=JiraConfig(**raw.get("jira", {})),
     )
 
 

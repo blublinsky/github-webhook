@@ -1,6 +1,6 @@
 # Webhook Handler
 
-A reliable webhook receiver built with FastAPI. Currently supports GitHub webhooks, but designed to be extended to any webhook source (Jira, Slack, Stripe, etc.) without touching the core processing pipeline.
+A reliable webhook receiver built with FastAPI. Supports GitHub and Jira Cloud webhooks, and is designed to be extended to any webhook source (Slack, Stripe, etc.) without touching the core processing pipeline.
 
 Events are persisted to SQLite on arrival and processed asynchronously by a pool of workers, so nothing is lost if a handler fails or the process restarts.
 
@@ -44,7 +44,7 @@ make fmt           # auto-format
 
 ## Configuration
 
-All configuration lives in `config.yaml`:
+All configuration lives in `config.yaml` (see [`config.yaml.example`](config.yaml.example) for a ready-to-copy template):
 
 ```yaml
 server:
@@ -66,6 +66,9 @@ retention:
 
 github:
   webhook_secret: /run/secrets/github_webhook_secret
+
+jira:
+  webhook_secret: .jira_webhook_secret  # omit or leave empty to disable
 ```
 
 ## API
@@ -73,6 +76,7 @@ github:
 | Endpoint | Method | Description |
 |---|---|---|
 | `/webhooks/github` | POST | Receive GitHub webhook events |
+| `/webhooks/jira` | POST | Receive Jira Cloud webhook events (when configured) |
 | `/health` | GET | Queue depth, processed/failed counts |
 | `/failed` | GET | Recent permanently failed events |
 
@@ -82,7 +86,8 @@ github:
 src/github_webhook/
 ├── providers/
 │   ├── base.py        # WebhookProvider protocol
-│   └── github.py      # GitHub auth, headers, event handlers
+│   ├── github.py      # GitHub auth, headers, event handlers
+│   └── jira.py        # Jira Cloud auth, payload extraction, event handlers
 ├── queue.py           # EventQueue protocol (swap backends here)
 ├── store.py           # SQLite implementation
 ├── handlers.py        # Event dispatcher (routes to provider handlers)
@@ -167,6 +172,60 @@ INFO  Webhook queued: <delivery-id> github/ping
 ```
 
 You can also go to **Settings → Webhooks → Recent Deliveries** on GitHub to inspect the delivery status and redeliver past events for testing.
+
+## Setting up with Jira Cloud
+
+For a comprehensive overview of Jira webhooks, see the [Hookdeck Guide to Jira Webhooks](https://hookdeck.com/webhooks/platforms/guide-to-jira-webhooks-features-and-best-practices).
+
+### 1. Generate a webhook secret
+
+```bash
+openssl rand -hex 32 > .jira_webhook_secret
+```
+
+Update `jira.webhook_secret` in `config.yaml` (see [Configuration](#configuration) above) and restart the server — you should see Jira handlers registered in the logs.
+
+### 2. Create the webhook in Jira
+
+1. Go to your Jira Cloud instance: **Settings** (cog icon) → **System** → **WebHooks**
+2. Click **Create a WebHook**
+3. Fill in:
+   - **Name**: descriptive name (e.g. "Local dev handler")
+   - **URL**: `https://your-tunnel-url.trycloudflare.com/webhooks/jira`
+   - **Secret**: the value from `.jira_webhook_secret` (run `cat .jira_webhook_secret`)
+   - **Events**: select the events you care about (Issue created/updated/deleted, Comment created/updated/deleted)
+4. Optionally add a JQL filter to limit which issues trigger webhooks
+5. Click **Create**
+
+### 3. Verify it works
+
+Create or update an issue in a matching project. Your server logs should show:
+
+```
+INFO  Webhook queued: <delivery-id> jira/jira:issue_created
+INFO  [PROJ] Issue PROJ-42 created by Jane Smith: Fix login timeout
+```
+
+### Handled Jira events
+
+| Event | Description |
+|---|---|
+| `jira:issue_created` | New issue created |
+| `jira:issue_updated` | Issue field changed (status, assignee, priority, etc.) |
+| `jira:issue_deleted` | Issue deleted |
+| `comment_created` | New comment on an issue |
+| `comment_updated` | Comment edited |
+| `comment_deleted` | Comment removed |
+| `sprint_created` | New sprint created |
+| `sprint_updated` | Sprint modified |
+| `sprint_started` | Sprint started |
+| `sprint_closed` | Sprint closed |
+| `sprint_deleted` | Sprint deleted |
+| `jira:version_released` | Version released |
+| `jira:version_unreleased` | Version unreleased |
+| `jira:version_deleted` | Version deleted |
+
+Unhandled events are logged by the fallback handler and marked as `skipped`.
 
 ## Adding a new provider
 
